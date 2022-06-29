@@ -1,0 +1,64 @@
+org: hikvineh4local
+app: nestjs-demo
+service: temperature-service
+
+useDotenv: true
+
+custom:
+  serverless-layers:
+    - common:
+        dependenciesPath: ./package.json
+        packageManager: yarn
+        compatibleRuntimes: ['nodejs12.x']
+        compatibleArchitectures: null
+  stages:
+    dev:
+      warmup:
+        enabled: false
+        events:
+          - schedule: cron(0/4 0-15 ? * * *)
+    prod:
+      warmup:
+        enabled: true
+        events:
+          - schedule: cron(0/4 0-15 ? * * *)
+  warmup:
+    default: ${self:custom.stages.${self:provider.stage}.warmup}
+  region: ${env:REGION, 'ap-southeast-1'}
+
+provider:
+  name: aws
+  lambdaHashingVersion: '20201221'
+  endpointType: REGIONAL
+  region: ${self:custom.region}
+  runtime: nodejs12.x
+  memorySize: 512
+  timeout: 6
+  profile: ${env:AWS_PROFILE, 'default'}
+  stage: ${opt:stage, 'dev'}
+  deploymentBucket: serverless-deployment-20220620
+  environment:
+    AWS_ACCOUNT_ID: ${aws:accountId}
+    STAGE: ${self:provider.stage}
+    SERVICE_NAME: ${self:service}-${self:provider.stage}
+    
+
+plugins:
+  - serverless-plugin-warmup
+  - serverless-layers
+
+package:
+  individually: true
+  exclude: ./**
+  include: ./dist/**
+
+functions:
+  main:
+    warmup:
+      default:
+        enabled: false
+    handler: dist/handler.handler
+    events:
+      - http:
+          method: get
+          path: /temperature/{proxy+}
